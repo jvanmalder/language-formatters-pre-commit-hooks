@@ -21,7 +21,7 @@ def _download_google_java_formatter(version: str) -> str:  # pragma: no cover
 
     def get_arch() -> str:
         machine = platform.machine().lower()
-        if machine in ["x86_64", "x64", "amd64"]
+        if machine in ["x86_64", "x64", "amd64"]:
             return "x86-64"
         return machine
 
