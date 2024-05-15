@@ -30,7 +30,7 @@ def _download_google_java_formatter(version: str) -> str:  # pragma: no cover
             return ".exe"
         return ""
         
-    def get_urls(_version: str) -> typing.List[typing.Tuple[str, str]]
+    def get_urls(_version: str) -> typing.List[typing.Tuple[str, str]]:
         # Links extracted from https://github.com/google/google-java-format/
         os_name = get_os()
         arch_name = get_arch()
