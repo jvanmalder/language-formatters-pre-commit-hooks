@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import argparse
+import platform
 import sys
 import typing
 
@@ -14,26 +15,55 @@ from language_formatters_pre_commit_hooks.utils import download_url
 from language_formatters_pre_commit_hooks.utils import run_command
 
 
-def _download_google_java_formatter_jar(version: str) -> str:  # pragma: no cover
-    def get_urls(_version: str) -> typing.List[str]:
+def _download_google_java_formatter(version: str) -> str:  # pragma: no cover
+    def get_os() -> str:
+        return platform.system().lower()
+
+    def get_arch() -> str:
+        machine = platform.machine().lower()
+        if machine in ["x86_64", "x64", "amd64"]
+            return "x86-64"
+        return machine
+
+    def get_file_ext(os_name: str) -> str:
+        if os_name == "windows":
+            return ".exe"
+        return ""
+        
+    def get_urls(_version: str) -> typing.List[typing.Tuple[str, str]]
         # Links extracted from https://github.com/google/google-java-format/
-        return [
+        os_name = get_os()
+        arch_name = get_arch()
+        file_ext = get_file_ext(os_name)
+        return [(
+            # Try using the native binaries
+            "https://github.com/google/google-java-format/releases/download/"
+            "v{version}/google-java-format_{os_name}-{arch_name}{file_ext}".format(
+                version=_version,
+                os_name=os_name,
+                arch_name=arch_name,
+                file_ext=file_ext,
+            ), file_ext),(
             "https://github.com/google/google-java-format/releases/download/"
             "v{version}/google-java-format-{version}-all-deps.jar".format(
                 version=_version,
-            ),
+            ), ".jar"),(
             # Versions older than 1.10 have a different template
             "https://github.com/google/google-java-format/releases/download/"
             "google-java-format-{version}/google-java-format-{version}-all-deps.jar".format(
                 version=_version,
-            ),
+            ), ".jar"),
         ]
 
     possible_urls = get_urls(version)
     try:
-        for url_to_download in possible_urls:
+        for url_to_download, file_ext in possible_urls:
             try:
-                return download_url(url_to_download, "google-java-formatter{version}.jar".format(version=version))
+                return download_url(
+                    url_to_download, "google-java-formatter{version}{file_ext}".format(
+                        version=version, file_ext=file_ext
+                    )
+                )
             except requests.HTTPError as e:
                 if e.response is None or e.response.status_code != 404:
                     # If the url was not found then move forward with the next links
@@ -95,7 +125,7 @@ def pretty_format_java(argv: typing.Optional[typing.List[str]] = None) -> int:
         assert_max_jdk_version(Version("16.0"), inclusive=False)  # pragma: no cover
 
     if args.google_java_formatter_jar is None:
-        google_java_formatter_jar = _download_google_java_formatter_jar(
+        google_java_formatter_jar = _download_google_java_formatter(
             args.google_java_formatter_version,
         )
     else:
@@ -104,23 +134,29 @@ def pretty_format_java(argv: typing.Optional[typing.List[str]] = None) -> int:
     if args.checksum and not does_checksum_match(google_java_formatter_jar, args.checksum):
         return 1
 
-    cmd_args = [
-        "java",
-        # export JDK internal classes for Java 16+
-        "--add-exports",
-        "jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
-        "--add-exports",
-        "jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
-        "--add-exports",
-        "jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED",
-        "--add-exports",
-        "jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
-        "--add-exports",
-        "jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
-        "-jar",
-        google_java_formatter_jar,
-        "--set-exit-if-changed",
-    ]
+    if google_java_formatter_jar.endswith(".jar"):
+        cmd_args = [
+            "java",
+            # export JDK internal classes for Java 16+
+            "--add-exports",
+            "jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
+            "--add-exports",
+            "jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
+            "--add-exports",
+            "jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED",
+            "--add-exports",
+            "jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
+            "--add-exports",
+            "jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
+            "-jar",
+            google_java_formatter_jar,
+            "--set-exit-if-changed",
+        ]
+    else:
+        cmd_args = [
+            google_java_formatter_jar,
+            "--set-exit-if-changed",
+        ]
     if args.aosp:  # pragma: no cover
         cmd_args.append("--aosp")
     if args.autofix:
