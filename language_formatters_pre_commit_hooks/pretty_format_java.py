@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import argparse
+import os
 import platform
+import stat
 import sys
 import typing
 
@@ -125,16 +127,16 @@ def pretty_format_java(argv: typing.Optional[typing.List[str]] = None) -> int:
         assert_max_jdk_version(Version("16.0"), inclusive=False)  # pragma: no cover
 
     if args.google_java_formatter_jar is None:
-        google_java_formatter_jar = _download_google_java_formatter(
+        google_java_formatter = _download_google_java_formatter(
             args.google_java_formatter_version,
         )
     else:
-        google_java_formatter_jar = args.google_java_formatter_jar
+        google_java_formatter = args.google_java_formatter_jar
 
     if args.checksum and not does_checksum_match(google_java_formatter_jar, args.checksum):
         return 1
 
-    if google_java_formatter_jar.endswith(".jar"):
+    if google_java_formatter.endswith(".jar"):
         cmd_args = [
             "java",
             # export JDK internal classes for Java 16+
@@ -149,12 +151,14 @@ def pretty_format_java(argv: typing.Optional[typing.List[str]] = None) -> int:
             "--add-exports",
             "jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
             "-jar",
-            google_java_formatter_jar,
+            google_java_formatter,
             "--set-exit-if-changed",
         ]
     else:
+        current_permissions = os.stat(google_java_formatter)
+        os.chmod(google_java_formatter, current_permissions.st_mode | stat.S_IEXEC)
         cmd_args = [
-            google_java_formatter_jar,
+            google_java_formatter,
             "--set-exit-if-changed",
         ]
     if args.aosp:  # pragma: no cover
